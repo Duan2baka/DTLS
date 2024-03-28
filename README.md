@@ -20,3 +20,5 @@ Follow the command lines below
 python main.py --mode eval --hr_size 128 --lr_size 16 --load_path 'pretrained_weight/DTLS_128.pt' --save_folder 'DTLS_16_128_results' --input_image 'your_images_folder'
 ```
 
+my train
+python main.py --mode train --hr_size 128 --lr_size 16 --stride 4 --train_steps 100001 --save_folder 'DTLS_16_128' --data_path ./training_set/ --batch_size 16

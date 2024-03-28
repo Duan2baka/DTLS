@@ -373,6 +373,7 @@ class Trainer(object):
         backwards = partial(loss_backwards, self.fp16)
 
         acc_loss = 0
+        self.step = 0
         while self.step < self.train_num_steps:
             for i in range(self.gradient_accumulate_every):
                 data = next(self.dl).to(self.device)
