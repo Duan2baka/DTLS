@@ -3,7 +3,7 @@ import torch.cuda
 from util.unet import Unet
 # from unet_old import Unet
 # from dtls import DTLS, Trainer
-from dtls_improved import DTLS, Trainer
+from dtls_smiling import DTLS, Trainer
 import argparse
 import time
 
