@@ -234,6 +234,7 @@ class DTLS(nn.Module):
 
 # dataset classes
 
+'''
 class Dataset(data.Dataset):
     def __init__(self, folder, image_size, exts = ['jpg', 'jpeg', 'png']):
         super().__init__()
@@ -255,6 +256,50 @@ class Dataset(data.Dataset):
         path = self.paths[index]
         img = Image.open(path)
         return self.transform(img)
+'''
+
+class Dataset(torch.utils.data.Dataset):
+    def __init__(self, root_dir, image_size):
+        self.root_dir = Path(root_dir)
+        self.image_paths = []
+        self.smiles = []
+
+        '''for smile_folder in self.root_dir.iterdir():
+            if smile_folder.is_dir():
+                print(smile_folder)
+                smile = float(smile_folder.stem)
+                for image_path in smile_folder.glob('*png'):
+                    self.image_paths.append(image_path)
+                    self.smiles.append(smile)'''
+        
+        for smile_folder in sorted(self.root_dir.iterdir(), key=lambda x: float(x.stem)):
+            if smile_folder.is_dir():
+                #print(smile_folder)
+                smile = float(smile_folder.stem)
+                for image_path in smile_folder.glob('*png'):
+                    self.image_paths.append(image_path)
+                    self.smiles.append(smile)
+        self.transform = transforms.Compose([
+            transforms.Resize((int(image_size*1.1), int(image_size*1.1))),
+            transforms.RandomCrop(image_size),
+            transforms.ToTensor(),
+            transforms.Lambda(lambda t: (t * 2) - 1)
+        ])
+        '''self.transform = transforms.Compose([
+            transforms.Resize((128, 128)),
+            transforms.ToTensor(),
+            transforms.Lambda(lambda t: (t * 2) - 1)
+        ])'''
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        img_path = self.image_paths[idx]
+        smile = self.smiles[idx]
+        img = Image.open(img_path)
+        return self.transform(img), smile
+
 
 
 # trainer class
