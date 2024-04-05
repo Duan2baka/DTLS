@@ -300,8 +300,6 @@ class Dataset(torch.utils.data.Dataset):
         img = Image.open(img_path)
         return self.transform(img), smile
 
-
-
 # trainer class
 
 class Trainer(object):
@@ -352,6 +350,7 @@ class Trainer(object):
         self.ds = Dataset(folder, image_size)
 
         self.dl = cycle(data.DataLoader(self.ds, batch_size = train_batch_size, shuffle=shuffle, pin_memory=True, num_workers=1))
+        #self.dl = cycle(data.DataLoader(self.ds, batch_size = train_batch_size, shuffle=shuffle, pin_memory=True, num_workers=1))
         self.opt = Adam(diffusion_model.parameters(), lr=train_lr, betas=(0.9, 0.999), eps=1e-8)
         self.opt_d = Adam(self.discriminator.parameters(), lr=train_lr, betas=(0.9, 0.999), eps=1e-8)
         self.BCE_loss = torch.nn.BCELoss(size_average=True,reduction='none')
@@ -421,8 +420,9 @@ class Trainer(object):
         self.step = 0
         while self.step < self.train_num_steps:
             for i in range(self.gradient_accumulate_every):
-                data = next(self.dl).to(self.device)
-
+                data,smiles = next(iter(self.dl))
+                data = data.to(self.device)
+                smiles = smiles.to(self.device)
                 score_true = self.discriminator(data)
                 GAN_true = torch.ones_like(score_true)
                 loss_dis_true = self.BCE_loss(score_true, GAN_true)
@@ -456,7 +456,9 @@ class Trainer(object):
                 self.step_ema()
 
             if self.step == 0 or self.step % self.save_and_sample_every == 0:
-                data = next(self.dl).to(self.device)
+                data,smiles = next(iter(self.dl))
+                data = data.to(self.device)
+                smiles = smiles.to(self.device)
                 blur_img_set = torch.tensor([])
                 hq_img_set = torch.tensor([])
                 FFHQ_quality_MANIQA = 0
