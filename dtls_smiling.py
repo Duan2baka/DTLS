@@ -103,7 +103,7 @@ class DTLS(nn.Module):
         self.stride = stride
         self.device = device
         self.MSE_loss = nn.MSELoss()
-
+    '''
     def transform_func(self, img, target_size):
         dice = torch.rand(1)
         dice2 = torch.rand(1)
@@ -128,7 +128,6 @@ class DTLS(nn.Module):
             up_sample_method = 'area'
         else:
             up_sample_method = 'nearest-exact'
-
         if self.image_size // target_size > 16:
             if down_sample_method == "bicubic" or down_sample_method == "bilinear":
                 img_1 = F.interpolate(img, size=m // 2, mode=down_sample_method, antialias=True)
@@ -152,7 +151,7 @@ class DTLS(nn.Module):
             img_1 = F.interpolate(img_1, size=m, mode=up_sample_method)
 
 
-        return  img_1
+        return  img_1'''
 
     def transform_func_sample(self, img, target_size):
         n = target_size
@@ -168,7 +167,7 @@ class DTLS(nn.Module):
             
         img_1 = F.interpolate(img_1, size=m, mode="bicubic", antialias=True)
 
-        return  img_1
+        return img_1
         
     @torch.no_grad()
     def sample(self, batch_size=16, img=None, t=None, imgname=None):
@@ -271,14 +270,15 @@ class Dataset(torch.utils.data.Dataset):
                 for image_path in smile_folder.glob('*png'):
                     self.image_paths.append(image_path)
                     self.smiles.append(smile)'''
-        
-        for smile_folder in sorted(self.root_dir.iterdir(), key=lambda x: float(x.stem)):
+        for smile_folder in sorted(self.root_dir.iterdir(), key=lambda x: float(x.name)):
+            #print(smile_folder.name)
             if smile_folder.is_dir():
                 #print(smile_folder)
-                smile = float(smile_folder.stem)
+                smile = float(smile_folder.name)
                 for image_path in smile_folder.glob('*png'):
                     self.image_paths.append(image_path)
                     self.smiles.append(smile)
+                #print(smile)
         self.transform = transforms.Compose([
             transforms.Resize((int(image_size*1.1), int(image_size*1.1))),
             transforms.RandomCrop(image_size),
@@ -423,11 +423,12 @@ class Trainer(object):
                 data,smiles = next(iter(self.dl))
                 data = data.to(self.device)
                 smiles = smiles.to(self.device)
+                #print(data[0])
+                #print(smiles)
                 score_true = self.discriminator(data)
                 GAN_true = torch.ones_like(score_true)
                 loss_dis_true = self.BCE_loss(score_true, GAN_true)
                 backwards(loss_dis_true / self.gradient_accumulate_every, self.opt_d)
-
 
                 loss, x_recon = self.model(data)
 
