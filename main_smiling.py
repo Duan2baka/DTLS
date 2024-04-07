@@ -13,7 +13,7 @@ parser.add_argument('--mode', default='eval', type=str, help="mode for either 't
 parser.add_argument('--hr_size', default=128, type=int, help="size of HR image")
 parser.add_argument('--lr_size', default=16, type=int, help="size of LR image")
 parser.add_argument('--interval_mode', default="linear", type=str, help="linear: fix interval size between domain; exp: interval by 2^n")
-parser.add_argument('--stride', default=4, type=int, help="size change between each step if linear mode is used")
+#parser.add_argument('--stride', default=4, type=int, help="size change between each step if linear mode is used")
 parser.add_argument('--train_steps', default=1000001, type=int)
 parser.add_argument('--lr_rate', default=2e-5, help="learning rate")
 parser.add_argument('--sample_every_iterations', default=5000, type=int, help="sample SR images for every number of iterations")
@@ -26,7 +26,7 @@ parser.add_argument("--input_image", default="test_images/128_inpaint", type=str
 args = parser.parse_args()
 
 device = args.device if torch.cuda.is_available() else "cpu"
-if args.interval_mode == "linear":
+'''if args.interval_mode == "linear":
     size_list = []
     timestep = (args.hr_size - args.lr_size) // args.stride
     for i in reversed(range(timestep+1)):
@@ -52,11 +52,11 @@ elif args.interval_mode == "fibonacci":
         if i < args.hr_size:
             size_list.append(i)
     print(size_list)
-    timestep = len(size_list) - 1
+    timestep = len(size_list) - 1'''
 
-print(f"Total steps for {args.lr_size} to {args.hr_size}: {timestep}")
+#print(f"Total steps for {args.lr_size} to {args.hr_size}: {timestep}")
 
-if args.hr_size == 512:
+'''if args.hr_size == 512:
     model = Unet(
         dim = 32,                             # 32 ==> 512
         dim_mults = (1, 2, 4, 4, 8, 16),   # 32 ==> 512
@@ -77,20 +77,18 @@ elif args.hr_size == 256:
         channels=3,
         residual=False
     ).to(device)
-elif args.hr_size == 1024:
-    model = Unet(
-        dim=16,
-        dim_mults=(1, 1, 2, 4, 8, 16, 32, 64),
-        channels=3,
-        residual=False
-    ).to(device)
+elif args.hr_size == 1024:'''
+
+model = Unet(
+    dim=16,
+    dim_mults=(1, 1, 2, 4, 8, 16, 32, 64),
+    channels=3,
+    residual=False
+).to(device)
     
 dtls = DTLS(
     model,
     image_size = args.hr_size,
-    stride = args.stride,
-    size_list=size_list,
-    timesteps = timestep,        # number of steps
     device=device,
 ).to(device)
 

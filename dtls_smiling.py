@@ -89,18 +89,12 @@ class DTLS(nn.Module):
         denoise_fn,
         *,
         image_size,
-        size_list,
-        stride,
-        timesteps,
         device,
         stochastic=False,
     ):
         super().__init__()
         self.image_size = image_size
         self.denoise_fn = denoise_fn
-        self.num_timesteps = int(timesteps)
-        self.size_list = size_list
-        self.stride = stride
         self.device = device
         self.MSE_loss = nn.MSELoss()
     '''
@@ -270,15 +264,26 @@ class Dataset(torch.utils.data.Dataset):
                 for image_path in smile_folder.glob('*png'):
                     self.image_paths.append(image_path)
                     self.smiles.append(smile)'''
+        self.img_list = []
+        self.label_list = []
         for smile_folder in sorted(self.root_dir.iterdir(), key=lambda x: float(x.name)):
+            self.label_list.append(smile_folder.name)
+        for smile_folder in sorted(self.root_dir.iterdir(), key=lambda x: float(x.name)):
+            if smile_folder.is_dir():
+                for image_path in smile_folder.glob('*png'):
+                    self.img_list.append(image_path.name)
+                break
+
+        '''for smile_folder in sorted(self.root_dir.iterdir(), key=lambda x: float(x.name)):
             #print(smile_folder.name)
             if smile_folder.is_dir():
                 #print(smile_folder)
                 smile = float(smile_folder.name)
                 for image_path in smile_folder.glob('*png'):
+                    self.img_list.append(image_path)
                     self.image_paths.append(image_path)
-                    self.smiles.append(smile)
-                #print(smile)
+                    self.smiles.append(smile)'''
+        
         self.transform = transforms.Compose([
             transforms.Resize((int(image_size*1.1), int(image_size*1.1))),
             transforms.RandomCrop(image_size),
@@ -423,7 +428,7 @@ class Trainer(object):
                 data,smiles = next(iter(self.dl))
                 data = data.to(self.device)
                 smiles = smiles.to(self.device)
-                #print(data[0])
+                print(data.shape)
                 #print(smiles)
                 score_true = self.discriminator(data)
                 GAN_true = torch.ones_like(score_true)

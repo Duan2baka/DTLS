@@ -377,7 +377,8 @@ class Trainer(object):
         while self.step < self.train_num_steps:
             for i in range(self.gradient_accumulate_every):
                 data = next(self.dl).to(self.device)
-
+                print(data.shape)
+                exit(0)
                 score_true = self.discriminator(data)
                 GAN_true = torch.ones_like(score_true)
                 loss_dis_true = self.BCE_loss(score_true, GAN_true)
