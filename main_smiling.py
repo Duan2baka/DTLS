@@ -10,8 +10,7 @@ import time
 parser = argparse.ArgumentParser()
 parser.add_argument('--device', default="cuda:0", type=str)
 parser.add_argument('--mode', default='eval', type=str, help="mode for either 'train' or 'eval'")
-parser.add_argument('--hr_size', default=128, type=int, help="size of HR image")
-parser.add_argument('--lr_size', default=16, type=int, help="size of LR image")
+parser.add_argument('--size', default=128, type=int, help="size of HR image")
 parser.add_argument('--interval_mode', default="linear", type=str, help="linear: fix interval size between domain; exp: interval by 2^n")
 #parser.add_argument('--stride', default=4, type=int, help="size change between each step if linear mode is used")
 parser.add_argument('--train_steps', default=1000001, type=int)
@@ -95,7 +94,7 @@ model = Unet(
 
 dtls = DTLS(
     model,
-    image_size = args.hr_size,
+    image_size = args.size,
     device=device,
 ).to(device)
 
@@ -103,7 +102,7 @@ dtls = DTLS(
 trainer = Trainer(
     dtls,
     args.data_path,
-    image_size = args.hr_size,
+    image_size = args.size,
     train_batch_size = args.batch_size,
     train_lr = args.lr_rate,
     train_num_steps = args.train_steps, # total training steps

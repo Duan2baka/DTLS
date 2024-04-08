@@ -98,115 +98,52 @@ class DTLS(nn.Module):
         self.denoise_fn = denoise_fn
         self.device = device
         self.MSE_loss = nn.MSELoss()
-    '''
-    def transform_func(self, img, target_size):
-        dice = torch.rand(1)
-        dice2 = torch.rand(1)
-
-        n = target_size
-        m = self.image_size
-
-        if dice < 0.25:
-            down_sample_method = 'bicubic'
-        elif 0.25 <= dice < 0.5:
-            down_sample_method = 'bilinear'
-        elif 0.5 <= dice < 0.75:
-            down_sample_method = 'area'
-        else:
-            down_sample_method = 'nearest-exact'
-
-        if dice2 < 0.25:
-            up_sample_method = 'bicubic'
-        elif 0.25 <= dice < 0.5:
-            up_sample_method = 'bilinear'
-        elif 0.5 <= dice < 0.75:
-            up_sample_method = 'area'
-        else:
-            up_sample_method = 'nearest-exact'
-        if self.image_size // target_size > 16:
-            if down_sample_method == "bicubic" or down_sample_method == "bilinear":
-                img_1 = F.interpolate(img, size=m // 2, mode=down_sample_method, antialias=True)
-                img_1 = F.interpolate(img_1, size=img_1.shape[2] // 2, mode=down_sample_method, antialias=True)
-                img_1 = F.interpolate(img_1, size=img_1.shape[2] // 2, mode=down_sample_method, antialias=True)
-                img_1 = F.interpolate(img_1, size=n, mode=down_sample_method, antialias=True)
-            else:
-                img_1 = F.interpolate(img, size=m // 2, mode=down_sample_method)
-                img_1 = F.interpolate(img_1, size=img_1.shape[2] // 2, mode=down_sample_method)
-                img_1 = F.interpolate(img_1, size=img_1.shape[2] // 2, mode=down_sample_method)
-                img_1 = F.interpolate(img_1, size=n, mode=down_sample_method)
-        else:
-            if down_sample_method == "bicubic" or down_sample_method == "bilinear":
-                img_1 = F.interpolate(img, size=n, mode=down_sample_method, antialias=True)
-            else:
-                img_1 = F.interpolate(img, size=n, mode=down_sample_method)
-
-        if up_sample_method == "bicubic" or down_sample_method == "bilinear":
-            img_1 = F.interpolate(img_1, size=m, mode=up_sample_method, antialias=True)
-        else:
-            img_1 = F.interpolate(img_1, size=m, mode=up_sample_method)
-
-
-        return  img_1'''
-
-    def transform_func_sample(self, img, target_size):
-        n = target_size
-        m = self.image_size
-        
-        if self.image_size // target_size > 16:
-            img_1 = F.interpolate(img, size=m // 2, mode="bicubic", antialias=True)
-            img_1 = F.interpolate(img_1, size=img_1.shape[2] // 2, mode="bicubic", antialias=True)
-            img_1 = F.interpolate(img_1, size=img_1.shape[2] // 2, mode="bicubic", antialias=True)
-            img_1 = F.interpolate(img_1, size=n, mode="bicubic", antialias=True)
-        else:
-            img_1 = F.interpolate(img, size=n, mode="bicubic", antialias=True)
-            
-        img_1 = F.interpolate(img_1, size=m, mode="bicubic", antialias=True)
-
-        return img_1
         
     @torch.no_grad()
-    def sample(self, batch_size=16, img=None, t=None, imgname=None):
-        print("sampling....................")
+    def sample(self, batch_size=16, img=None, t=None, imgname=None, label=None, device=None):
         if t == None:
-            t = self.num_timesteps
-
-        blur_img = self.transform_func_sample(img.clone(), self.size_list[t])
+            t = 3
+        #print(label)
+        blur_img = img[:,label.index(0),:,:,:]
         img_t = blur_img.clone()
         previous_x_s0 = None
         momentum = 0
-
+        it = label.index(0)
         ####### Domain Transfer
-        while (t):
-            current_step = self.size_list[t]
-            next_step = self.size_list[t-1]
+        while (t != label[it]):
+            dir = -1 if t < label[it] else 1
+            current_step = label[it]
+            next_step = label[it + dir]
             print(f"Current Step of img: from {current_step} to {next_step}")
 
             step = torch.full((batch_size,), t, dtype=torch.long).to(self.device)
+            momentum_l = 0
 
-            if previous_x_s0 is None:
+            '''if previous_x_s0 is None:
                 momentum_l = 0
             else:
-                momentum_l = self.transform_func_sample(momentum, current_step)
+                momentum_l = self.transform_func_sample(momentum, current_step)'''
 
             #weight = (1 - (current_step**2/self.image_size**2))
             #weight = (1 - math.log(current_step + 1 - self.size_list[-1])/math.log(self.image_size))
 
-            if previous_x_s0 is None:
+            '''if previous_x_s0 is None:
                 R_x = self.denoise_fn(img_t, step)
                 # return blur_img, R_x
                 previous_x_s0 = R_x
             else:
-                R_x = self.denoise_fn(img_t + momentum_l, step)
+                R_x = self.denoise_fn(img_t + momentum_l, step)'''
+            R_x = self.denoise_fn(img_t.to(device), step.to(device))
 
-            momentum += previous_x_s0 - R_x
+            #momentum += previous_x_s0 - R_x
             previous_x_s0 = R_x
 
             # R_x = self.denoise_fn(img_t, step)
 
             # utils.save_image((R_x+1)/2, f"20230103_eval/{current_step}_SR.png")
-            x4 = self.transform_func_sample(R_x, next_step)
-            img_t = x4
-            t -= 1
+            #x4 = self.transform_func_sample(R_x, next_step)
+            img_t = R_x
+            it = it + dir
         return blur_img, img_t
 
     def p_losses(self, x_start, t, label, device):
@@ -238,43 +175,12 @@ class DTLS(nn.Module):
 
 # dataset classes
 
-'''
-class Dataset(data.Dataset):
-    def __init__(self, folder, image_size, exts = ['jpg', 'jpeg', 'png']):
-        super().__init__()
-        self.folder = folder
-        self.image_size = image_size
-        self.paths = [p for ext in exts for p in Path(f'{folder}').glob(f'**/*.{ext}')]
-
-        self.transform = transforms.Compose([
-            transforms.Resize((int(image_size*1.1), int(image_size*1.1))),
-            transforms.RandomCrop(image_size),
-            transforms.ToTensor(),
-            transforms.Lambda(lambda t: (t * 2) - 1)
-        ])
-
-    def __len__(self):
-        return len(self.paths)
-
-    def __getitem__(self, index):
-        path = self.paths[index]
-        img = Image.open(path)
-        return self.transform(img)
-'''
-
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, root_dir, image_size):
         self.root_dir = Path(root_dir)
         self.image_paths = []
         self.smiles = []
 
-        '''for smile_folder in self.root_dir.iterdir():
-            if smile_folder.is_dir():
-                print(smile_folder)
-                smile = float(smile_folder.stem)
-                for image_path in smile_folder.glob('*png'):
-                    self.image_paths.append(image_path)
-                    self.smiles.append(smile)'''
         self.img_list = []
         self.label_list = []
         for smile_folder in sorted(self.root_dir.iterdir(), key=lambda x: float(x.name)):
@@ -285,22 +191,6 @@ class Dataset(torch.utils.data.Dataset):
                     self.img_list.append(image_path.name)
                 break
         self.label_list = sorted(self.label_list, key=lambda x: float(x))
-        '''self.label_to_images = {}
-        for label in self.label_list:
-            self.label_to_images[label] = []
-        for image_path in smile_folder.glob('*png'):
-            self.img_list.append(image_path.name)
-            self.label_to_images[smile_folder.name].append(image_path.name)
-            print(smile_folder.name)'''
-        '''for smile_folder in sorted(self.root_dir.iterdir(), key=lambda x: float(x.name)):
-            #print(smile_folder.name)
-            if smile_folder.is_dir():
-                #print(smile_folder)
-                smile = float(smile_folder.name)
-                for image_path in smile_folder.glob('*png'):
-                    self.img_list.append(image_path)
-                    self.image_paths.append(image_path)
-                    self.smiles.append(smile)'''
         
         self.transform = transforms.Compose([
             transforms.Resize((int(image_size*1.1), int(image_size*1.1))),
@@ -431,13 +321,13 @@ class Trainer(object):
         }
         torch.save(data, str(self.results_folder / f'model_last.pt'))
 
-    def load(self, load_path):
-        print("Loading : ", load_path)
-        data = torch.load(load_path, map_location=self.device)
+    #def load(self, load_path):
+        #print("Loading : ", load_path)
+        #data = torch.load(load_path, map_location=self.device)
 
-        self.step = data['step']
-        self.model.load_state_dict(data['model'], strict=False)
-        self.ema_model.load_state_dict(data['ema'], strict=False)
+        #self.step = data['step']
+        #self.model.load_state_dict(data['model'], strict=False)
+        #self.ema_model.load_state_dict(data['ema'], strict=False)
         # self.discriminator.load_state_dict(data['dis'], strict=False)
 
     def train(self):
@@ -448,7 +338,7 @@ class Trainer(object):
         while self.step < self.train_num_steps:
             for i in range(self.gradient_accumulate_every):
                 data, label = next(iter(self.dl))
-                #data.to(self.device)
+                data.to(self.device)
                 #print(data.shape)
                 #print(data[:,0,:,:,:].shape)
                 #score_true = self.discriminator(data[:,0,:,:,:].to(self.device))
@@ -463,10 +353,9 @@ class Trainer(object):
                     backwards(loss_dis_true / self.gradient_accumulate_every, self.opt_d)
                     del score_true
 
-                ###########################################################################################
 
                 loss, x_recon = self.model(data.to(self.device), label)
-                print(f"x_recon.shape:{x_recon.shape}")
+                #print(f"x_recon.shape:{x_recon.shape}")
 
                 score_false = self.discriminator(x_recon.detach())
                 GAN_false = torch.zeros_like(score_false)
@@ -495,18 +384,18 @@ class Trainer(object):
             if self.step == 0 or self.step % self.save_and_sample_every == 0:
                 data,label = next(iter(self.dl))
                 data.to(self.device)
-                blur_img_set = torch.tensor([])
-                hq_img_set = torch.tensor([])
+                input_img_set = torch.tensor([])
+                out_img_set = torch.tensor([])
                 FFHQ_quality_MANIQA = 0
                 FFHQ_quality_NIQE = 0
                 for image in data:
-                    blur_img, hq_img = self.ema_model.sample(batch_size=1, img=image.unsqueeze(0))
-                    hq_img = (hq_img + 1) / 2
-                    blur_img = (blur_img + 1) /2
-                    utils.save_image(hq_img, str(self.results_folder / f'temp.png'), nrow=self.nrow)
+                    input_img, out_img = self.ema_model.sample(batch_size=1, img=image.unsqueeze(0),label=[float(row[0]) for row in label],device=self.device)
+                    out_img = (out_img + 1) / 2
+                    input_img = (input_img + 1) /2
+                    utils.save_image(out_img, str(self.results_folder / f'temp.png'), nrow=self.nrow)
 
-                    blur_img_set = torch.cat((blur_img_set, blur_img.to("cpu")), dim=0)
-                    hq_img_set = torch.cat((hq_img_set, hq_img.to("cpu")), dim=0)
+                    input_img_set = torch.cat((input_img_set, input_img.to("cpu")), dim=0)
+                    out_img_set = torch.cat((out_img_set, out_img.to("cpu")), dim=0)
 
                     NIQE_mark = self.niqe(str(self.results_folder / f'temp.png')).item()
                     MANIQA_mark = self.MANIQA(str(self.results_folder / f'temp.png')).item()
@@ -519,8 +408,8 @@ class Trainer(object):
                 FFHQ_quality_MANIQA /= self.batch_size
                 FFHQ_quality_NIQE /= self.batch_size
 
-                img_set = torch.cat((blur_img_set, hq_img_set), dim=0)
-                utils.save_image(img_set, str(self.results_folder / f'{self.step}_FFHQ.png'), nrow=blur_img_set.shape[0])
+                img_set = torch.cat((input_img_set, out_img_set), dim=0)
+                utils.save_image(img_set, str(self.results_folder / f'{self.step}_FFHQ.png'), nrow=input_img_set.shape[0])
 
                 
                 self.metrics_list.append(f"FFHQ Images MANIQA: {FFHQ_quality_MANIQA} | NIQE: {FFHQ_quality_NIQE}")
@@ -530,9 +419,9 @@ class Trainer(object):
                     file.write(line + "\n")
                 file.close()
 
-                print(f'Mean of last {self.step}: {acc_loss}')
+                #print(f'Mean of last {self.step}: {acc_loss}')
                 self.save_last()
-                acc_loss = 0
+                #acc_loss = 0
 
             self.step += 1
         print('training completed')
