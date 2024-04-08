@@ -10,6 +10,7 @@ import torch
 import lpips
 import pyiqa
 import math
+import random
 
 from torch import nn
 from functools import partial
@@ -165,6 +166,7 @@ class DTLS(nn.Module):
         
     @torch.no_grad()
     def sample(self, batch_size=16, img=None, t=None, imgname=None):
+        print("sampling....................")
         if t == None:
             t = self.num_timesteps
 
@@ -207,23 +209,32 @@ class DTLS(nn.Module):
             t -= 1
         return blur_img, img_t
 
-    def p_losses(self, x_start, t):
-        x_blur = x_start.clone()
+    def p_losses(self, x_start, t, label, device):
+        #print(f"x_start shape: {x_start.shape}")
+        x_out = torch.empty(x_start.shape[:1] + x_start.shape[2:])
+        #print(f"x_out shape: {x_out.shape}")
+        t1 = []
         for i in range(t.shape[0]):
-            current_step = self.size_list[t[i]]
-            x_blur[i] = self.transform_func(x_blur[i].unsqueeze(0), current_step)
-        x_recon = self.denoise_fn(x_blur, t)
+            #current_step = t[i]
+            x_out[i] = x_start[i][t[i]].to(device)
+            t1.append(label[t[i]])
+        #print(torch.tensor(t1).float().to(device).shape)
+        #print(x_out.to(device).shape)
+        x_recon = self.denoise_fn(x_out.to(device), torch.tensor(t1).float().to(device))
 
         ### Loss function
-        loss = self.MSE_loss(x_recon, x_start)
+        loss = self.MSE_loss(x_recon, x_start[:,label.index(0),:,:,:])
         return loss, x_recon
 
-    def forward(self, x, *args, **kwargs):
-        b, c, h, w, device, img_size, = *x.shape, x.device, self.image_size
+    def forward(self, x, label, *args, **kwargs):
+        #print(label)
+        b, n, c, h, w, device, img_size, = *x.shape, x.device, self.image_size
         assert h == img_size and w == img_size, f'height and width of image must be {img_size}'
-        t = torch.randint(1, self.num_timesteps + 1, (b,), device=device).long()
+        t = torch.tensor(random.choices(range(0, len(label)), k=b)).to(device)
+        #print(t)
+        #t = torch.randint(1, self.num_timesteps + 1, (b,), device=device).long()
 
-        return self.p_losses(x, t, *args, **kwargs)
+        return self.p_losses(x, t, [float(row[0]) for row in label], device, *args, **kwargs)
 
 # dataset classes
 
@@ -273,7 +284,14 @@ class Dataset(torch.utils.data.Dataset):
                 for image_path in smile_folder.glob('*png'):
                     self.img_list.append(image_path.name)
                 break
-
+        self.label_list = sorted(self.label_list, key=lambda x: float(x))
+        '''self.label_to_images = {}
+        for label in self.label_list:
+            self.label_to_images[label] = []
+        for image_path in smile_folder.glob('*png'):
+            self.img_list.append(image_path.name)
+            self.label_to_images[smile_folder.name].append(image_path.name)
+            print(smile_folder.name)'''
         '''for smile_folder in sorted(self.root_dir.iterdir(), key=lambda x: float(x.name)):
             #print(smile_folder.name)
             if smile_folder.is_dir():
@@ -290,20 +308,24 @@ class Dataset(torch.utils.data.Dataset):
             transforms.ToTensor(),
             transforms.Lambda(lambda t: (t * 2) - 1)
         ])
-        '''self.transform = transforms.Compose([
-            transforms.Resize((128, 128)),
-            transforms.ToTensor(),
-            transforms.Lambda(lambda t: (t * 2) - 1)
-        ])'''
 
     def __len__(self):
-        return len(self.image_paths)
+        return len(self.img_list)
 
     def __getitem__(self, idx):
-        img_path = self.image_paths[idx]
-        smile = self.smiles[idx]
-        img = Image.open(img_path)
-        return self.transform(img), smile
+        img_name = self.img_list[idx]
+        transformed_images = []
+        #label_list = []
+        for label in self.label_list:
+            image_path = self.root_dir / label / img_name
+            img = Image.open(image_path)
+            transformed_img = self.transform(img)
+            transformed_images.append(transformed_img)
+            #label_list.append(label)
+        stacked_images = torch.stack(transformed_images, dim=0)
+        #print(stacked_images.shape)
+        return stacked_images, self.label_list
+
 
 # trainer class
 
@@ -425,17 +447,26 @@ class Trainer(object):
         self.step = 0
         while self.step < self.train_num_steps:
             for i in range(self.gradient_accumulate_every):
-                data,smiles = next(iter(self.dl))
-                data = data.to(self.device)
-                smiles = smiles.to(self.device)
-                print(data.shape)
-                #print(smiles)
-                score_true = self.discriminator(data)
-                GAN_true = torch.ones_like(score_true)
-                loss_dis_true = self.BCE_loss(score_true, GAN_true)
-                backwards(loss_dis_true / self.gradient_accumulate_every, self.opt_d)
+                data, label = next(iter(self.dl))
+                #data.to(self.device)
+                #print(data.shape)
+                #print(data[:,0,:,:,:].shape)
+                #score_true = self.discriminator(data[:,0,:,:,:].to(self.device))
+                #print(f"score_true:{score_true.shape}")
 
-                loss, x_recon = self.model(data)
+                for i in range(data.size(1)):
+                    image = data[:, i, :, :, :].to(self.device)
+                    score_true = self.discriminator(image)
+                    image = image.detach().to('cpu')
+                    GAN_true = torch.ones_like(score_true)
+                    loss_dis_true = self.BCE_loss(score_true, GAN_true)
+                    backwards(loss_dis_true / self.gradient_accumulate_every, self.opt_d)
+                    del score_true
+
+                ###########################################################################################
+
+                loss, x_recon = self.model(data.to(self.device), label)
+                print(f"x_recon.shape:{x_recon.shape}")
 
                 score_false = self.discriminator(x_recon.detach())
                 GAN_false = torch.zeros_like(score_false)
@@ -462,9 +493,8 @@ class Trainer(object):
                 self.step_ema()
 
             if self.step == 0 or self.step % self.save_and_sample_every == 0:
-                data,smiles = next(iter(self.dl))
-                data = data.to(self.device)
-                smiles = smiles.to(self.device)
+                data,label = next(iter(self.dl))
+                data.to(self.device)
                 blur_img_set = torch.tensor([])
                 hq_img_set = torch.tensor([])
                 FFHQ_quality_MANIQA = 0

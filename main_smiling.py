@@ -1,6 +1,6 @@
 import math
 import torch.cuda
-from util.unet import Unet
+from util.unet_smiling import Unet
 # from unet_old import Unet
 # from dtls import DTLS, Trainer
 from dtls_smiling import DTLS, Trainer
@@ -77,15 +77,22 @@ elif args.hr_size == 256:
         channels=3,
         residual=False
     ).to(device)
-elif args.hr_size == 1024:'''
+elif args.hr_size == 1024:
+    model = Unet(
+        dim=16,
+        dim_mults=(1, 1, 2, 4, 8, 16, 32, 64),
+        channels=3,
+        residual=False
+    ).to(device)'''
+    
 
 model = Unet(
-    dim=16,
-    dim_mults=(1, 1, 2, 4, 8, 16, 32, 64),
+    dim=64,
+    dim_mults=(1, 2, 4, 8),
     channels=3,
     residual=False
 ).to(device)
-    
+
 dtls = DTLS(
     model,
     image_size = args.hr_size,
