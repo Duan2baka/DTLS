@@ -27,3 +27,5 @@ python main_smiling.py --mode train --hr_size 128 --lr_size 16 --stride 4 --trai
 
 
 python main_smiling.py --mode train --hr_size 128 --lr_size 16 --stride 4 --train_steps 100001 --save_folder 'myDTLS_smiling' --data_path ./fake_dataset_128/ --batch_size 16
+
+python main_smiling.py --mode train --train_steps 100001 --save_folder 'myDTLS_smiling' --data_path ./fake_dataset_128/ --batch_size 16
