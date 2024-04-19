@@ -230,6 +230,7 @@ class DTLS(nn.Module):
         b, c, h, w, device, img_size, = *x.shape, x.device, self.image_size
         assert h == img_size and w == img_size, f'height and width of image must be {img_size}'
         t = torch.randint(1, self.num_timesteps + 1, (b,), device=device).long()
+        print("forward")
 
         return self.p_losses(x, t, *args, **kwargs)
 

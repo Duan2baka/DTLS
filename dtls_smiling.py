@@ -110,6 +110,10 @@ class DTLS(nn.Module):
         momentum = 0
         it = label.index(0)
         ####### Domain Transfer
+        step = torch.full((batch_size,), t, dtype=torch.long).to(self.device)
+        R_x = self.denoise_fn(img_t.to(device), step.to(device))
+        img_t=R_x
+        '''
         while (t != label[it]):
             dir = -1 if t < label[it] else 1
             current_step = label[it]
@@ -119,20 +123,20 @@ class DTLS(nn.Module):
             step = torch.full((batch_size,), t, dtype=torch.long).to(self.device)
             momentum_l = 0
 
-            '''if previous_x_s0 is None:
-                momentum_l = 0
-            else:
-                momentum_l = self.transform_func_sample(momentum, current_step)'''
+            #if previous_x_s0 is None:
+            #    momentum_l = 0
+            #else:
+            #    momentum_l = self.transform_func_sample(momentum, current_step)
 
             #weight = (1 - (current_step**2/self.image_size**2))
             #weight = (1 - math.log(current_step + 1 - self.size_list[-1])/math.log(self.image_size))
 
-            '''if previous_x_s0 is None:
-                R_x = self.denoise_fn(img_t, step)
-                # return blur_img, R_x
-                previous_x_s0 = R_x
-            else:
-                R_x = self.denoise_fn(img_t + momentum_l, step)'''
+            #if previous_x_s0 is None:
+            #    R_x = self.denoise_fn(img_t, step)
+            #    # return blur_img, R_x
+            #    previous_x_s0 = R_x
+            #else:
+            #    R_x = self.denoise_fn(img_t + momentum_l, step)
             R_x = self.denoise_fn(img_t.to(device), step.to(device))
 
             #momentum += previous_x_s0 - R_x
@@ -143,13 +147,22 @@ class DTLS(nn.Module):
             # utils.save_image((R_x+1)/2, f"20230103_eval/{current_step}_SR.png")
             #x4 = self.transform_func_sample(R_x, next_step)
             img_t = R_x
-            it = it + dir
+            it = it + dir'''
         return blur_img, img_t
-
+    
+    def tensor2im(self, var):
+        var = var.cpu().detach().transpose(0, 2).transpose(0, 1).numpy()
+        var = ((var + 1) / 2)
+        var[var < 0] = 0
+        var[var > 1] = 1
+        var = var * 255
+        return Image.fromarray(var.astype('uint8'))
+    
     def p_losses(self, x_start, t, label, device):
         #print(f"x_start shape: {x_start.shape}")
         x_out = torch.empty(x_start.shape[:1] + x_start.shape[2:])
         #print(f"x_out shape: {x_out.shape}")
+        #print(f"lanel:{label}")
         t1 = []
         for i in range(t.shape[0]):
             #current_step = t[i]
@@ -157,10 +170,21 @@ class DTLS(nn.Module):
             t1.append(label[t[i]])
         #print(torch.tensor(t1).float().to(device).shape)
         #print(x_out.to(device).shape)
-        x_recon = self.denoise_fn(x_out.to(device), torch.tensor(t1).float().to(device))
-
+        x_recon = self.denoise_fn(x_start[:,label.index(0),:,:,:], torch.tensor(t1).float().to(device))
+        loss = self.MSE_loss(x_recon, x_out.to(device))
+        '''print(x_out[0].shape)
+        img=self.tensor2im(x_out[0])
+        img.save("./x_out.jpg")
+        img=self.tensor2im(x_recon[0])
+        img.save("./recon.jpg")
+        print(x_start[:,label.index(0),:,:,:][0].shape)
+        img=self.tensor2im(x_start[:,label.index(0),:,:,:][0])
+        img.save("./x_start.jpg")
         ### Loss function
-        loss = self.MSE_loss(x_recon, x_start[:,label.index(0),:,:,:])
+        print(loss)
+        print(f"t:{t[0]}")
+        print(f"t1:{t1[0]}")
+        exit(0)'''
         return loss, x_recon
 
     def forward(self, x, label, *args, **kwargs):
@@ -170,7 +194,6 @@ class DTLS(nn.Module):
         t = torch.tensor(random.choices(range(0, len(label)), k=b)).to(device)
         #print(t)
         #t = torch.randint(1, self.num_timesteps + 1, (b,), device=device).long()
-
         return self.p_losses(x, t, [float(row[0]) for row in label], device, *args, **kwargs)
 
 # dataset classes
@@ -193,8 +216,8 @@ class Dataset(torch.utils.data.Dataset):
         self.label_list = sorted(self.label_list, key=lambda x: float(x))
         
         self.transform = transforms.Compose([
-            transforms.Resize((int(image_size*1.1), int(image_size*1.1))),
-            transforms.RandomCrop(image_size),
+            #transforms.Resize((int(image_size*1.1), int(image_size*1.1))),
+            #transforms.RandomCrop(image_size),
             transforms.ToTensor(),
             transforms.Lambda(lambda t: (t * 2) - 1)
         ])
@@ -290,8 +313,8 @@ class Trainer(object):
         self.MANIQA = pyiqa.create_metric('maniqa', device=torch.device(self.device))
 
         self.best_quality = 0
-        #if load_path != None:
-        #    self.load(load_path)
+        if load_path != None:
+            self.load(load_path)
 
 
     def reset_parameters(self):
@@ -321,14 +344,14 @@ class Trainer(object):
         }
         torch.save(data, str(self.results_folder / f'model_last.pt'))
 
-    #def load(self, load_path):
-        #print("Loading : ", load_path)
-        #data = torch.load(load_path, map_location=self.device)
+    def load(self, load_path):
+        print("Loading : ", load_path)
+        data = torch.load(load_path, map_location=self.device)
 
-        #self.step = data['step']
-        #self.model.load_state_dict(data['model'], strict=False)
-        #self.ema_model.load_state_dict(data['ema'], strict=False)
-        # self.discriminator.load_state_dict(data['dis'], strict=False)
+        self.step = data['step']
+        self.model.load_state_dict(data['model'], strict=False)
+        self.ema_model.load_state_dict(data['ema'], strict=False)
+        self.discriminator.load_state_dict(data['dis'], strict=False)
 
     def train(self):
         backwards = partial(loss_backwards, self.fp16)
