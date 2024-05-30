@@ -113,6 +113,7 @@ class DTLS(nn.Module):
         #step = torch.full((batch_size,), t, dtype=torch.long).to(self.device)
         #R_x = self.denoise_fn(img_t.to(device), step.to(device))
         #img_t=R_x
+        #return blur_img, img_t
         
         while (t != label[it]):
             dir = -1 if t < label[it] else 1
@@ -120,7 +121,8 @@ class DTLS(nn.Module):
             next_step = label[it + dir]
             print(f"Current Step of img: from {current_step} to {next_step}")
 
-            step = torch.full((batch_size,), label[it], dtype=torch.long).to(self.device)
+            #step = torch.full((batch_size,), label[it], dtype=torch.long).to(self.device)
+            step = torch.full((batch_size,), label[it], dtype=torch.float).to(self.device)
             momentum_l = 0
 
             #if previous_x_s0 is None:
@@ -175,6 +177,14 @@ class DTLS(nn.Module):
         #print(x_start[:,label.index(0),:,:,:].shape)
         #print(x_in.shape)
         x_recon = self.denoise_fn(x_in.to(device), torch.tensor(t1).float().to(device))
+        '''for i in label:
+            lis = []
+            for j in range(t.shape[0]):
+                lis.append(i)
+            tmp = self.denoise_fn(x_in.to(device), torch.tensor(lis).float().to(device))[0]
+            img = self.tensor2im(tmp)
+            img.save(f"./{i}.png")
+        exit(0)'''
         loss = self.MSE_loss(x_recon, x_out.to(device))
         '''print(x_out[0].shape)
         img=self.tensor2im(x_out[0])
@@ -317,8 +327,8 @@ class Trainer(object):
         self.MANIQA = pyiqa.create_metric('maniqa', device=torch.device(self.device))
 
         self.best_quality = 0
-        #if load_path != None:
-        #    self.load(load_path)
+        if load_path != None:
+            self.load(load_path)
 
 
     def reset_parameters(self):
